@@ -643,14 +643,14 @@ def main():
             # Filtro por Gestor (Imobiliária)
             ser = df_norm.get("Imobiliária Efetiva", pd.Series(dtype=object)).dropna().apply(_extract_name_any).astype(str)
             gestor_opts = sorted(ser.unique().tolist())
-            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=gestor_opts, key="cv_gestor_sel")
+            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=[], key="cv_gestor_sel")
             emp_opts = sorted([o for o in (df["Empreendimento"].dropna().unique().tolist() if not df.empty else [])])
             corr_leads = set(df["Corretor Final"].dropna().unique().tolist() if not df.empty else [])
             coorte_hdr_tmp = vis_auto["coorte"]
             corr_vis   = set(coorte_hdr_tmp["responsavel"].dropna().unique().tolist() if not coorte_hdr_tmp.empty and "responsavel" in coorte_hdr_tmp.columns else [])
             corr_opts  = sorted(list(corr_leads.union(corr_vis)))
-            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=emp_opts, key="cv_sel_emp")
-            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=corr_opts, key="cv_sel_corr")
+            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=[], key="cv_sel_emp")
+            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=[], key="cv_sel_corr")
 
         df_kpi = df_norm.copy()
         sel_gestor = st.session_state.get("cv_gestor_sel") or []
