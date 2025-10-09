@@ -125,6 +125,19 @@ def dataframe_to_excel_bytes(df: pd.DataFrame) -> bytes:
         df.to_excel(writer, index=False)
     return buf.getvalue()
 
+# ===== Helper para exibição de tabelas sem legenda/índice à esquerda =====
+def display_df(df, **kwargs):
+    try:
+        import pandas as _pd
+        if isinstance(df, _pd.DataFrame):
+            # Resetar o índice só para garantir que não apareça coluna de índice
+            df = df.reset_index(drop=True)
+        st.data_editor(df, use_container_width=True, hide_index=True, disabled=True)
+    except Exception:
+        # fallback
+        display_df(df, use_container_width=True)
+
+
 # === Funil visual centralizado ===
 def _funnel_uniform_centered(stages, title="", height_scale=1.0):
     if not stages:
@@ -430,7 +443,7 @@ def _vis_render_kpis_corretor(coorte: pd.DataFrame):
             piv["SLA médio (dias)"] = None
     else:
         piv["SLA médio (dias)"] = None
-    st.dataframe(piv.sort_values(by=["Realizada"], ascending=[False]), use_container_width=True)
+    display_df(piv.sort_values(by=["Realizada"], ascending=[False]), use_container_width=True)
 
 def _vis_render_listas(df_vis: pd.DataFrame):
     if df_vis.empty:
@@ -443,10 +456,10 @@ def _vis_render_listas(df_vis: pd.DataFrame):
     dfv = df_vis.copy(); dfv["__ultima_data"] = dfv.apply(ultima_data_evento, axis=1)
     latest = (dfv.sort_values(["idlead","__ultima_data"], ascending=[True, False]).drop_duplicates(subset=["idlead"], keep="first"))
     cols1 = [c for c in ["idlead","lead","telefone","email","responsavel","status_visita","status_final","data","data_conclusao","data_cancelamento","idempreendimento","nome_empreendimento","titulo"] if c in latest.columns]
-    st.markdown("**Leads com visita (1 linha por lead — último status)**"); st.dataframe(latest[cols1], use_container_width=True)
+    st.markdown("**Leads com visita (1 linha por lead — último status)**"); display_df(latest[cols1], use_container_width=True)
     cols2 = [c for c in ["idlead","lead","telefone","email","responsavel","status_visita","status_final","data","data_conclusao","data_cancelamento","idempreendimento","nome_empreendimento","titulo","idtarefa","hora","motivo_cancelamento","motivo_concluido"] if c in dfv.columns]
-    st.markdown("**Todas as visitas (uma linha por visita)**")
-    st.dataframe(dfv[cols2].sort_values(by=["idlead","data","data_conclusao","data_cancelamento"], ascending=[True, True, True, True]), use_container_width=True)
+    with st.expander("Todas as visitas (uma linha por visita) — oculto", expanded=False):
+        display_df(dfv[cols2].sort_values(by=["idlead","data","data_conclusao","data_cancelamento"], ascending=[True, True, True, True]))
 
 def contagens_status_final(coorte: pd.DataFrame) -> dict:
     if coorte.empty: return dict(Agendada=0, Realizada=0, Cancelada=0, **{"No-show":0, "Reagendada":0, "Pendente":0})
@@ -625,14 +638,14 @@ def main():
             # Filtro por Gestor (Imobiliária)
             ser = df_norm.get("Imobiliária Efetiva", pd.Series(dtype=object)).dropna().apply(_extract_name_any).astype(str)
             gestor_opts = sorted(ser.unique().tolist())
-            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=gestor_opts, key="cv_gestor_sel")
+            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=[], key="cv_gestor_sel")
             emp_opts = sorted([o for o in (df["Empreendimento"].dropna().unique().tolist() if not df.empty else [])])
             corr_leads = set(df["Corretor Final"].dropna().unique().tolist() if not df.empty else [])
             coorte_hdr_tmp = vis_auto["coorte"]
             corr_vis   = set(coorte_hdr_tmp["responsavel"].dropna().unique().tolist() if not coorte_hdr_tmp.empty and "responsavel" in coorte_hdr_tmp.columns else [])
             corr_opts  = sorted(list(corr_leads.union(corr_vis)))
-            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=emp_opts, key="cv_sel_emp")
-            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=corr_opts, key="cv_sel_corr")
+            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=[], key="cv_sel_emp")
+            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=[], key="cv_sel_corr")
 
         df_kpi = df_norm.copy()
         sel_gestor = st.session_state.get("cv_gestor_sel") or []
@@ -840,7 +853,7 @@ def main():
             if "KPIs (concat)" in cons_view.columns:
                 kidx = list(cons_view.columns).index("KPIs (concat)")
                 cons_display = cons_view.iloc[:, :kidx]
-            st.dataframe(cons_display, use_container_width=True)
+            display_df(cons_display, use_container_width=True)
             st.download_button("⬇️ Baixar (Consolidado) .xlsx", data=dataframe_to_excel_bytes(cons_display), file_name="cv_corretores_consolidado.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             # ====== Tabela Principal (imutável) ======
@@ -871,26 +884,23 @@ def main():
             full = full.sort_values(by=["Leads","Visita realizada"], ascending=[False, False])
             cols_ordem = ["Corretor Final","Leads","Aguardando atendimento","Aguardando atendimento do corretor","Em atendimento","Visita agendada","Visita realizada","Análise de crédito","Venda","Arquivado","Leads_sem_visita","SLA médio (dias)"]
             cols_exist = [c for c in cols_ordem if c in full.columns]
-            st.markdown("### 📄 Tabela principal (imutável)")
-            st.dataframe(full[cols_exist], use_container_width=True)
-            st.download_button("⬇️ Baixar (Principal) .xlsx", data=dataframe_to_excel_bytes(full[cols_exist]), file_name="cv_corretores_principal.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-            # ---- Drilldown por corretor ----
-            st.markdown("### 🔎 Drilldown rápido por corretor")
-            sel_cor = st.selectbox("Selecione um corretor", sorted(cons_df["Corretor Final"].dropna().unique().tolist()) if not cons_df.empty else [], key="cv_drill_sel")
-            if sel_cor:
-                leads_cor = df_kpi[df_kpi["Corretor Final"].astype(str) == sel_cor].copy()
+            st.markdown("### 📄 Tabela principal (oculta)")
+            st.caption("Ocultada por duplicar as mesmas informações da visão consolidada.")
+            st.empty()  # tabela principal ocultada
+            st.caption("Download da Tabela principal foi ocultado")
+            if sel_corr:
+                leads_cor = df_kpi[df_kpi["Corretor Final"].astype(str) == sel_corr].copy()
                 cols_leads_show = [c for c in ["Data Primeiro Cadastro","Empreendimento","Situação","Situacao (Target)","Origem do Lead","Gerente","Momento do Lead"] if c in leads_cor.columns]
                 st.markdown("**Leads do período**")
                 if cols_leads_show:
-                    st.dataframe(leads_cor[cols_leads_show].sort_values(by="Data Primeiro Cadastro", ascending=False), use_container_width=True)
+                    display_df(leads_cor[cols_leads_show].sort_values(by="Data Primeiro Cadastro", ascending=False), use_container_width=True)
                 coorte_sel = coorte_hdr.copy()
                 if not coorte_sel.empty and "responsavel" in coorte_sel.columns:
-                    coorte_sel = coorte_sel[coorte_sel["responsavel"].astype(str) == sel_cor]
+                    coorte_sel = coorte_sel[coorte_sel["responsavel"].astype(str) == sel_corr]
                 st.markdown("**Visitas (coorte do cabeçalho)**")
                 if not coorte_sel.empty:
                     cols_vis_show = [c for c in ["data","status_final","nome_empreendimento","titulo","data_conclusao","data_cancelamento","idlead","idtarefa"] if c in coorte_sel.columns]
-                    st.dataframe(coorte_sel[cols_vis_show].sort_values(by=["data","data_conclusao","data_cancelamento"], ascending=[False, False, False]), use_container_width=True)
+                    display_df(coorte_sel[cols_vis_show].sort_values(by=["data","data_conclusao","data_cancelamento"], ascending=[False, False, False]), use_container_width=True)
                 else:
                     st.info("Sem visitas para esse corretor no período.")
         # ====== CV VISITAS ======
@@ -943,6 +953,6 @@ def render_interacoes_cv_tab():
     st.info("Fallback de Interações ativo. Mostrando leads em cache (se houver).")
     df_leads = st.session_state.get("cv_df_leads_view") or st.session_state.get("cv_df_leads_norm") or st.session_state.get("cv_df_leads")
     if isinstance(df_leads, pd.DataFrame) and not df_leads.empty:
-        st.dataframe(df_leads.head(200), use_container_width=True)
+        display_df(df_leads.head(200), use_container_width=True)
     else:
         st.caption("Sem dataframe de leads em cache. Carregue na visão principal.")
