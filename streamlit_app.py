@@ -4,24 +4,6 @@
 import streamlit as st
 st.set_page_config(layout="wide", page_title="Dashboard de Leads — CV")
 import pandas as pd, numpy as np, plotly.express as px, plotly.graph_objects as go
-
-# ==== Fallback de Corretor e Gestor (Imobiliária) ====
-def aplicar_fallback_corretor_gestor(df_src: pd.DataFrame) -> pd.DataFrame:
-    df = df_src.copy()
-    for c in ["Corretor Final", "Corretor Anterior", "Gestor (Imobiliária)"]:
-        if c not in df.columns:
-            df[c] = None
-    mask_vazio_corr = df["Corretor Final"].astype(str).str.strip().eq("") | df["Corretor Final"].isna()
-    df.loc[mask_vazio_corr, "Corretor Final"] = df.loc[mask_vazio_corr, "Corretor Anterior"]
-    base_mapa = df.dropna(subset=["Corretor Final", "Gestor (Imobiliária)"]).copy()
-    base_mapa = base_mapa[base_mapa["Corretor Final"].astype(str).str.strip() != ""]
-    base_mapa = base_mapa[base_mapa["Gestor (Imobiliária)"].astype(str).str.strip() != ""]
-    mapa = (base_mapa[["Corretor Final","Gestor (Imobiliária)"]]
-            .drop_duplicates("Corretor Final")
-            .set_index("Corretor Final")["Gestor (Imobiliária)"].to_dict())
-    mask_vazio_gestor = df["Gestor (Imobiliária)"].astype(str).str.strip().eq("") | df["Gestor (Imobiliária)"].isna()
-    df.loc[mask_vazio_gestor, "Gestor (Imobiliária)"] = df.loc[mask_vazio_gestor, "Corretor Final"].map(mapa)
-    return df
 import requests, json, unicodedata, locale, io, re
 from requests.adapters import HTTPAdapter, Retry
 from datetime import date, timedelta, datetime
@@ -643,14 +625,14 @@ def main():
             # Filtro por Gestor (Imobiliária)
             ser = df_norm.get("Imobiliária Efetiva", pd.Series(dtype=object)).dropna().apply(_extract_name_any).astype(str)
             gestor_opts = sorted(ser.unique().tolist())
-            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=[], key="cv_gestor_sel")
+            st.multiselect("Gestor (Imobiliária)", gestor_opts, default=gestor_opts, key="cv_gestor_sel")
             emp_opts = sorted([o for o in (df["Empreendimento"].dropna().unique().tolist() if not df.empty else [])])
             corr_leads = set(df["Corretor Final"].dropna().unique().tolist() if not df.empty else [])
             coorte_hdr_tmp = vis_auto["coorte"]
             corr_vis   = set(coorte_hdr_tmp["responsavel"].dropna().unique().tolist() if not coorte_hdr_tmp.empty and "responsavel" in coorte_hdr_tmp.columns else [])
             corr_opts  = sorted(list(corr_leads.union(corr_vis)))
-            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=[], key="cv_sel_emp")
-            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=[], key="cv_sel_corr")
+            sel_emp = st.multiselect("Empreendimento (Leads)", emp_opts, default=emp_opts, key="cv_sel_emp")
+            sel_corr = st.multiselect("Corretor (Leads/Visitas)", corr_opts, default=corr_opts, key="cv_sel_corr")
 
         df_kpi = df_norm.copy()
         sel_gestor = st.session_state.get("cv_gestor_sel") or []
