@@ -3,6 +3,31 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 st.set_page_config(layout="wide", page_title="Dashboard de Leads — CV")
+
+def apply_mobile_css():
+    """Aplica CSS responsivo quando 'mobile_mode' está ativo."""
+    mobile_mode = st.session_state.get('mobile_mode', True)
+    css = '''
+    <style>
+    .block-container {padding-top: 0.8rem; padding-bottom: 2rem;}
+    @media (max-width: 768px) {
+        .block-container {padding-left: 0.6rem; padding-right: 0.6rem;}
+        h1, .stMarkdown h1 {font-size: 1.3rem !important;}
+        h2, .stMarkdown h2 {font-size: 1.15rem !important;}
+        h3, .stMarkdown h3 {font-size: 1.05rem !important;}
+        .stButton > button, .stDownloadButton > button {width: 100%;}
+        .stTextInput input, .stNumberInput input,
+        .stSelectbox div[data-baseweb="select"],
+        .stMultiSelect div[data-baseweb="select"], .stDateInput input {width: 100% !important;}
+        .stTabs [data-baseweb="tab-list"] {gap: 4px;}
+        .stTabs [data-baseweb="tab"] {padding: 6px 8px; font-size: 0.9rem;}
+        .stDataFrame, .stDataEditor {font-size: 0.9rem;}
+    }
+    </style>
+    '''
+    if mobile_mode:
+        st.markdown(css, unsafe_allow_html=True)
+
 import pandas as pd, numpy as np, plotly.express as px, plotly.graph_objects as go
 import requests, json, unicodedata, locale, io, re
 from requests.adapters import HTTPAdapter, Retry
@@ -129,10 +154,12 @@ def dataframe_to_excel_bytes(df: pd.DataFrame) -> bytes:
 def display_df(df, **kwargs):
     try:
         import pandas as _pd
+        mobile_mode = st.session_state.get('mobile_mode', True)
+        default_height = 360 if mobile_mode else 500
         if isinstance(df, _pd.DataFrame):
             # Resetar o índice só para garantir que não apareça coluna de índice
             df = df.reset_index(drop=True)
-        st.data_editor(df, use_container_width=True, hide_index=True, disabled=True)
+        st.data_editor(df, use_container_width=True, hide_index=True, disabled=True, height=kwargs.get('height', default_height))
     except Exception:
         # fallback
         display_df(df, use_container_width=True)
@@ -584,6 +611,12 @@ def _apply_gestor_filter(df):
 
 
 def main():
+    
+    # ===== Mobile friendly toggle =====
+    with st.sidebar:
+        st.markdown('### ⚙️ Preferências')
+        st.session_state['mobile_mode'] = st.checkbox('📱 Modo compacto (celular)', value=True, help='Otimiza espaçamentos e tamanhos para telas pequenas')
+    apply_mobile_css()
     st.title("📊 Dashboard de Leads — CV")
 
     # Top-level tabs
